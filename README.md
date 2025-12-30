@@ -32,7 +32,7 @@ GraphRAG Studio is a visual builder for Retrieval-Augmented Generation (RAG) flo
 4.	Add a DB node and select your newly created vector database.
 5.	(Optional) Add LLM nodes and connect them to your local models via Ollama.
 
-<video src="https://github.com/user-attachments/assets/78da0cf2-f673-4217-a7ba-daa7e584cf29" controls="controls">
+<video src="https://github.com/user-attachments/assets/5d744006-3ffc-4574-9c67-dff8933d38f1" controls="controls">
 </video>
 
 ### Create a flow with a condition node
@@ -41,7 +41,7 @@ GraphRAG Studio is a visual builder for Retrieval-Augmented Generation (RAG) flo
 3.	Add a Condition node to branch the flow based on the classification result.
 4.	Handle the responses differently per branch (e.g., escalation path for urgent cases).
 
-<video src="https://github.com/user-attachments/assets/e5ca6a6c-d5c9-45a0-a637-f9e115e3fb06" controls="controls">
+<video src="https://github.com/user-attachments/assets/fb51a17d-51e3-4d2e-975b-2a0759919590" controls="controls">
 </video>
 
 ## Prerequisites
