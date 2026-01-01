@@ -13,6 +13,8 @@ class ConditionConfig:
     compare_value: str = ""
     operator: str = "eq"  # eq | neq | lt | gt
     pass_through_key: str | None = None
+    true_key: str = "true"
+    false_key: str = "false"
 
 
 def _coerce_types(left: Any, right: str) -> tuple[Any, Any]:
@@ -40,6 +42,8 @@ class ConditionNode(BaseNode):
         pass_value = inputs.get(pass_key) if pass_key else None
         output_value = pass_value if pass_key else value
         left, right = _coerce_types(value, self.config.compare_value)
+        true_key = (self.config.true_key or "true").strip() or "true"
+        false_key = (self.config.false_key or "false").strip() or "false"
 
         op = self.config.operator
         if op == "lt":
@@ -54,8 +58,8 @@ class ConditionNode(BaseNode):
         return {
             "condition": passed,
             "value": value,
-            "true": output_value if passed else None,
-            "false": output_value if not passed else None,
+            true_key: output_value if passed else None,
+            false_key: output_value if not passed else None,
         }
 
 

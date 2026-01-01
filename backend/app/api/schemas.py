@@ -42,6 +42,7 @@ class RunRequest(BaseModel):
 
 class RunResponse(BaseModel):
     outputs: dict
+    key_usage: dict | None = None
 
 
 class FlowCreate(BaseModel):
@@ -83,6 +84,7 @@ class RunRead(BaseModel):
     started_at: str | None = None
     completed_at: str | None = None
     node_outputs: Dict[str, NodeRunLog] | None = None
+    key_usage: Dict[str, Any] | None = None
 
 
 class ChunkPreview(BaseModel):

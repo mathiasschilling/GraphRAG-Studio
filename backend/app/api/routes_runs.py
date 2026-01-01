@@ -39,6 +39,7 @@ def list_runs(db: Session = Depends(get_db)) -> List[RunRead]:
             started_at=run.started_at.isoformat() if run.started_at else None,
             completed_at=run.completed_at.isoformat() if run.completed_at else None,
             node_outputs=run.node_outputs,
+            key_usage=run.key_usage,
         )
         for run in runs
     ]
@@ -61,6 +62,7 @@ def get_run(run_id: str, db: Session = Depends(get_db)) -> RunRead:
         started_at=run.started_at.isoformat() if run.started_at else None,
         completed_at=run.completed_at.isoformat() if run.completed_at else None,
         node_outputs=run.node_outputs,
+        key_usage=run.key_usage,
     )
 
 

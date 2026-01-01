@@ -34,26 +34,14 @@ import RunResultPanel from '../components/FlowEditor/RunResultPanel';
 import ShapeNode from '../components/FlowEditor/ShapeNode';
 import { RunStateProvider, useRunState } from '../state/runState';
 import { useRunEventStream } from '../hooks/useRunEventStream';
+import {
+  getConditionFalseKey,
+  getConditionTrueKey,
+  getNodeInputKey,
+  getNodeOutputKey,
+} from '../utils/nodeKeys';
 
 const nodeTypes = { shape: ShapeNode };
-
-const DEFAULT_SOURCE_HANDLE: Record<NodeType, string> = {
-  UserInputNode: 'input',
-  PromptTemplateNode: 'prompt',
-  LLMNode: 'response',
-  DatabaseNode: 'response',
-  FinalAnswerNode: 'output',
-  ConditionNode: 'true',
-};
-
-const DEFAULT_TARGET_HANDLE: Record<NodeType, string> = {
-  UserInputNode: 'input',
-  PromptTemplateNode: 'input',
-  LLMNode: 'prompt',
-  DatabaseNode: 'query',
-  FinalAnswerNode: 'response',
-  ConditionNode: 'input',
-};
 
 const MIN_LEFT_WIDTH = 220;
 const MAX_LEFT_WIDTH = 520;
@@ -106,6 +94,12 @@ const DEFAULT_CONFIGS: Record<NodeType, NodeConfig> = {
     query_template: '',
     top_k: 5,
   },
+  ExportNode: {
+    mode: 'key',
+    key: 'response',
+    input_key: 'input',
+    output_key: 'export_path',
+  },
   FinalAnswerNode: { key: 'response' },
   ConditionNode: { input_key: 'input', pass_through_key: '', compare_value: '', operator: 'eq' },
 };
@@ -116,14 +110,16 @@ function toReactFlowEdges(edges: EdgeDefinition[], nodes: Record<string, NodeDef
   return edges.map((edge) => {
     const targetNode = nodes[edge.to_node];
     const targetType = targetNode?.type as NodeType | undefined;
+    const targetConfig = (targetNode?.config || {}) as NodeConfig;
     const sourceNode = nodes[edge.from_node];
     const sourceType = sourceNode?.type as NodeType | undefined;
+    const sourceConfig = (sourceNode?.config || {}) as NodeConfig;
     return {
       id: edge.id,
       source: edge.from_node,
       target: edge.to_node,
-      sourceHandle: edge.from_output || DEFAULT_SOURCE_HANDLE[sourceType || 'UserInputNode'],
-      targetHandle: edge.to_input || DEFAULT_TARGET_HANDLE[targetType || 'PromptTemplateNode'],
+      sourceHandle: edge.from_output || getNodeOutputKey(sourceType || 'UserInputNode', sourceConfig),
+      targetHandle: edge.to_input || getNodeInputKey(targetType || 'PromptTemplateNode', targetConfig),
     };
   });
 }
@@ -147,15 +143,20 @@ function toFlowGraph(flowId: string, nodes: Node[], edges: Edge[]): FlowGraph {
     return acc;
   }, {});
 
+  const nodeConfigMap = nodes.reduce<Record<string, NodeConfig>>((acc, node) => {
+    acc[node.id] = (node.data?.config || {}) as NodeConfig;
+    return acc;
+  }, {});
+
   const edgeDefs: EdgeDefinition[] = edges.map((edge) => {
     const targetType = nodeTypeMap[edge.target] || 'PromptTemplateNode';
     const sourceType = nodeTypeMap[edge.source] || 'UserInputNode';
     return {
       id: edge.id,
       from_node: edge.source,
-      from_output: edge.sourceHandle || DEFAULT_SOURCE_HANDLE[sourceType] || 'input',
+      from_output: edge.sourceHandle || getNodeOutputKey(sourceType, nodeConfigMap[edge.source]),
       to_node: edge.target,
-      to_input: edge.targetHandle || DEFAULT_TARGET_HANDLE[targetType] || 'input',
+      to_input: edge.targetHandle || getNodeInputKey(targetType, nodeConfigMap[edge.target]),
     };
   });
 
@@ -275,14 +276,48 @@ function FlowEditorContent() {
 
     const sourceType = (sourceNode?.data?.type as NodeType) || 'UserInputNode';
     const targetType = (targetNode?.data?.type as NodeType) || 'PromptTemplateNode';
+    const sourceConfig = (sourceNode?.data?.config || {}) as NodeConfig;
+    const targetConfig = (targetNode?.data?.config || {}) as NodeConfig;
 
-    conn.sourceHandle = conn.sourceHandle || DEFAULT_SOURCE_HANDLE[sourceType];
-    conn.targetHandle = conn.targetHandle || DEFAULT_TARGET_HANDLE[targetType];
+    conn.sourceHandle = conn.sourceHandle || getNodeOutputKey(sourceType, sourceConfig);
+    conn.targetHandle = conn.targetHandle || getNodeInputKey(targetType, targetConfig);
 
     setEdges((eds) => addEdge({ ...conn, id: `${conn.source}-${conn.target}-${Date.now()}` }, eds));
   };
 
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
+
+  const handleKeyHover = useCallback(
+    (key: string | null) => {
+      const usage = key ? lastRun?.key_usage?.[key] : null;
+      const sourceNode = usage?.source_node ?? null;
+      const consumerSet = new Set(usage?.consumers ?? []);
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          let highlightRole: string | undefined;
+          if (sourceNode && node.id === sourceNode) {
+            highlightRole = consumerSet.has(node.id) ? 'both' : 'source';
+          } else if (consumerSet.has(node.id)) {
+            highlightRole = 'consumer';
+          }
+
+          if (node.data?.highlightRole === highlightRole) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              highlightRole,
+            },
+          };
+        }),
+      );
+    },
+    [lastRun, setNodes],
+  );
 
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
@@ -322,11 +357,53 @@ function FlowEditorContent() {
 
   const handleNodeUpdate = (id: string, config: Record<string, unknown>) => {
     // Update a node's config while keeping other properties intact.
+    const previous = nodes.find((node) => node.id === id);
+    const prevType = (previous?.data?.type as NodeType) || 'UserInputNode';
+    const prevConfig = (previous?.data?.config || {}) as NodeConfig;
+    const nextConfig = config as NodeConfig;
+
+    const prevSourceHandle = getNodeOutputKey(prevType, prevConfig);
+    const nextSourceHandle = getNodeOutputKey(prevType, nextConfig);
+    const prevTargetHandle = getNodeInputKey(prevType, prevConfig);
+    const nextTargetHandle = getNodeInputKey(prevType, nextConfig);
+    const prevTrueHandle = prevType === 'ConditionNode' ? getConditionTrueKey(prevConfig) : null;
+    const prevFalseHandle = prevType === 'ConditionNode' ? getConditionFalseKey(prevConfig) : null;
+    const nextTrueHandle = prevType === 'ConditionNode' ? getConditionTrueKey(nextConfig) : null;
+    const nextFalseHandle = prevType === 'ConditionNode' ? getConditionFalseKey(nextConfig) : null;
+
     setNodes((nds) =>
       nds.map((node) =>
         node.id === id ? { ...node, data: { ...node.data, config } } : node,
       ),
     );
+
+    if (
+      prevSourceHandle !== nextSourceHandle ||
+      prevTargetHandle !== nextTargetHandle ||
+      prevTrueHandle !== nextTrueHandle ||
+      prevFalseHandle !== nextFalseHandle
+    ) {
+      setEdges((eds) =>
+        eds.map((edge) => {
+          if (edge.source === id) {
+            if (prevType === 'ConditionNode') {
+              if (edge.sourceHandle === prevTrueHandle) {
+                return { ...edge, sourceHandle: nextTrueHandle || edge.sourceHandle };
+              }
+              if (edge.sourceHandle === prevFalseHandle) {
+                return { ...edge, sourceHandle: nextFalseHandle || edge.sourceHandle };
+              }
+            } else if (edge.sourceHandle === prevSourceHandle) {
+              return { ...edge, sourceHandle: nextSourceHandle };
+            }
+          }
+          if (edge.target === id && edge.targetHandle === prevTargetHandle) {
+            return { ...edge, targetHandle: nextTargetHandle };
+          }
+          return edge;
+        }),
+      );
+    }
   };
 
   const handleAddNode = (type: NodeType) => {
@@ -449,7 +526,7 @@ function FlowEditorContent() {
                 Run flow
               </button>
               {runFlow.error && <p style={{ color: 'red' }}>Failed to run flow</p>}
-              <RunResultPanel run={lastRun} selectedNodeId={selectedNodeId} />
+              <RunResultPanel run={lastRun} selectedNodeId={selectedNodeId} onKeyHover={handleKeyHover} />
             </div>
           </>
         )}

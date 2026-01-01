@@ -1,5 +1,12 @@
 import { CSSProperties, memo, useMemo } from 'react';
 import { Handle, NodeProps, Position } from 'reactflow';
+import type { NodeConfig, NodeType } from '../../types/nodes';
+import {
+  getConditionFalseKey,
+  getConditionTrueKey,
+  getNodeInputKey,
+  getNodeOutputKey,
+} from '../../utils/nodeKeys';
 
 type Shape = 'ellipse' | 'rectangle' | 'rounded' | 'hexagon' | 'diamond';
 
@@ -10,6 +17,7 @@ const shapeByType: Record<string, Shape> = {
   LLMNode: 'rectangle',
   DatabaseNode: 'rectangle',
   ConditionNode: 'rectangle',
+  ExportNode: 'rectangle',
 };
 
 const labelByType: Record<string, string> = {
@@ -18,6 +26,17 @@ const labelByType: Record<string, string> = {
   LLMNode: 'LLM',
   DatabaseNode: 'Database',
   ConditionNode: 'Condition',
+  ExportNode: 'Export',
+  FinalAnswerNode: 'Output',
+};
+
+const typeBadgeByType: Record<string, string> = {
+  UserInputNode: 'Input',
+  PromptTemplateNode: 'Prompt',
+  LLMNode: 'LLM',
+  DatabaseNode: 'DB',
+  ConditionNode: 'COND',
+  ExportNode: 'Export',
   FinalAnswerNode: 'Output',
 };
 
@@ -25,34 +44,66 @@ const labelByType: Record<string, string> = {
 // Sources map to outputs the executor expects (e.g., "prompt" or "response").
 type HandleDef = { id: string; position: Position; style?: CSSProperties; label?: string };
 
-const handleConfig: Record<string, { sources: HandleDef[]; targets: HandleDef[] }> = {
-  UserInputNode: {
-    sources: [{ id: 'input', position: Position.Bottom }],
-    targets: [],
-  },
-  PromptTemplateNode: {
-    sources: [{ id: 'prompt', position: Position.Bottom }],
-    targets: [{ id: 'input', position: Position.Top }],
-  },
-  LLMNode: {
-    sources: [{ id: 'response', position: Position.Bottom }],
-    targets: [{ id: 'prompt', position: Position.Top }],
-  },
-  DatabaseNode: {
-    sources: [{ id: 'response', position: Position.Bottom }],
-    targets: [{ id: 'query', position: Position.Top }],
-  },
-  FinalAnswerNode: {
-    sources: [],
-    targets: [{ id: 'response', position: Position.Top }],
-  },
-  ConditionNode: {
-    sources: [
-      { id: 'false', position: Position.Left, label: 'false', style: { top: '50%' } },
-      { id: 'true', position: Position.Right, label: 'true', style: { top: '50%' } },
-    ],
-    targets: [{ id: 'input', position: Position.Top }],
-  },
+const KNOWN_NODE_TYPES = new Set<NodeType>([
+  'UserInputNode',
+  'PromptTemplateNode',
+  'LLMNode',
+  'DatabaseNode',
+  'ConditionNode',
+  'ExportNode',
+  'FinalAnswerNode',
+]);
+
+const buildHandles = (type: string, config: NodeConfig): { sources: HandleDef[]; targets: HandleDef[] } => {
+  const nodeType = type as NodeType;
+  switch (nodeType) {
+    case 'UserInputNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [],
+      };
+    case 'PromptTemplateNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'LLMNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'DatabaseNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'ExportNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'FinalAnswerNode':
+      return {
+        sources: [],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'ConditionNode': {
+      const falseKey = getConditionFalseKey(config);
+      const trueKey = getConditionTrueKey(config);
+      return {
+        sources: [
+          { id: falseKey, position: Position.Left, label: falseKey, style: { top: '50%' } },
+          { id: trueKey, position: Position.Right, label: trueKey, style: { top: '50%' } },
+        ],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    }
+    default:
+      return {
+        sources: [{ id: 'output', position: Position.Bottom }],
+        targets: [{ id: 'input', position: Position.Top }],
+      };
+  }
 };
 
 function uniqueById(handles: HandleDef[]) {
@@ -108,26 +159,32 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
   // conditional connections. The memo wrapper avoids re-renders when
   // selection changes elsewhere on the canvas.
   const shape = useMemo(() => shapeByType[data?.type as string] ?? 'rectangle', [data?.type]);
-  const label = labelByType[data?.type as string] ?? (data?.type as string) ?? 'Node';
-  const customHandles = handleConfig[data?.type as string];
+  const config = (data?.config || {}) as NodeConfig;
+  const typeLabel = labelByType[data?.type as string] ?? (data?.type as string) ?? 'Node';
+  const typeBadge = typeBadgeByType[data?.type as string] ?? typeLabel;
+  const customName = (config.name || '').trim();
+  const label = customName || typeLabel;
+  const customHandles = buildHandles(data?.type as string, config);
   const runStatus = (data?.status as string) || 'idle';
   const statusLabel = runStatus.charAt(0).toUpperCase() + runStatus.slice(1);
   const statusClass = `status-${runStatus}`;
-  const handles =
-    customHandles ?? ({
-      sources: [{ id: 'output', position: Position.Bottom }],
-      targets: [{ id: 'input', position: Position.Top }],
-    } as const);
+  const isKnownType = KNOWN_NODE_TYPES.has((data?.type as NodeType) || 'UserInputNode');
+  const highlightRole = (data?.highlightRole as string) || '';
 
   const targetHandles = uniqueById(
-    handles.targets.length ? handles.targets : customHandles ? [] : [{ id: 'input', position: Position.Top }],
+    customHandles.targets.length ? customHandles.targets : isKnownType ? [] : [{ id: 'input', position: Position.Top }],
   );
   const sourceHandles = uniqueById(
-    handles.sources.length ? handles.sources : customHandles ? [] : [{ id: 'output', position: Position.Bottom }],
+    customHandles.sources.length ? customHandles.sources : isKnownType ? [] : [{ id: 'output', position: Position.Bottom }],
   );
 
   return (
-    <div className={`${shapeClass(shape)} ${statusClass}`} data-run-status={runStatus} data-selected={selected ? 'true' : 'false'}>
+    <div
+      className={`${shapeClass(shape)} ${statusClass}`}
+      data-run-status={runStatus}
+      data-selected={selected ? 'true' : 'false'}
+      data-highlight={highlightRole || undefined}
+    >
       <div className={`shape-status-badge ${statusClass}`}>{statusLabel}</div>
       {targetHandles.map((handle) => (
         <div key={`t-${handle.id}`}>
@@ -136,6 +193,7 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
         </div>
       ))}
       <div className="shape-label">{label}</div>
+      <div className="shape-type-label">{typeBadge}</div>
       {sourceHandles.map((handle) => (
         <div key={`s-${handle.id}`}>
           <Handle id={handle.id} type="source" position={handle.position} style={handle.style} />

@@ -14,10 +14,12 @@ const editableConfig: Record<NodeType, Array<{ key: keyof NodeConfig; label: str
   UserInputNode: [{ key: 'key', label: 'Output key', placeholder: 'input' }],
   PromptTemplateNode: [
     { key: 'template', label: 'Prompt template', placeholder: 'Hello {input}' },
+    { key: 'output_key', label: 'Output key', placeholder: 'prompt' },
   ],
   LLMNode: [
     { key: 'system_prompt', label: 'System prompt', placeholder: 'You are a helpful assistant.' },
     { key: 'user_template', label: 'User message template', placeholder: 'Answer the user message: {input}' },
+    { key: 'output_key', label: 'Output key', placeholder: 'response' },
     { key: 'model', label: 'Model name', placeholder: 'e.g. mistral' },
     { key: 'strip_reasoning', label: 'Strip reasoning tokens' },
   ],
@@ -26,13 +28,22 @@ const editableConfig: Record<NodeType, Array<{ key: keyof NodeConfig; label: str
     { key: 'database_id', label: 'Database' },
     { key: 'query_template', label: 'Query template', placeholder: 'Find context for: {input}' },
     { key: 'input_key', label: 'Input key', placeholder: 'query' },
+    { key: 'output_key', label: 'Output key', placeholder: 'response' },
     { key: 'top_k', label: 'Top K', placeholder: '5' },
   ],
   ConditionNode: [
     { key: 'input_key', label: 'Input key to check', placeholder: 'input' },
     { key: 'pass_through_key', label: 'Pass-through key (optional)', placeholder: 'input' },
+    { key: 'true_key', label: 'True output key', placeholder: 'true' },
+    { key: 'false_key', label: 'False output key', placeholder: 'false' },
     { key: 'compare_value', label: 'Compare against value', placeholder: '5' },
     { key: 'operator', label: 'Operator' },
+  ],
+  ExportNode: [
+    { key: 'mode', label: 'Export mode' },
+    { key: 'key', label: 'Key to export', placeholder: 'response' },
+    { key: 'filename', label: 'Filename (optional)', placeholder: 'export.json' },
+    { key: 'output_key', label: 'Output key', placeholder: 'export_path' },
   ],
 };
 
@@ -42,12 +53,23 @@ export default function NodeConfigPanel({ node, onChange, availableModels, avail
   const type = (node.data?.type as NodeType) || 'UserInputNode';
   const fields = useMemo(() => {
     const seen = new Set<string>();
-    return (editableConfig[type] || []).filter((field) => {
+    const baseFields: Array<{ key: keyof NodeConfig; label: string; placeholder?: string }> = [
+      { key: 'name', label: 'Node name', placeholder: 'Optional label' },
+    ];
+    const merged = [...baseFields, ...(editableConfig[type] || [])];
+    const filtered = merged.filter((field) => {
       if (seen.has(field.key)) return false;
       seen.add(field.key);
       return true;
     });
-  }, [type]);
+    if (type === 'ExportNode') {
+      const mode = (config as Record<string, string>).mode || 'key';
+      if (mode === 'run_log') {
+        return filtered.filter((field) => field.key !== 'key');
+      }
+    }
+    return filtered;
+  }, [config, type]);
 
   if (!fields.length) {
     return <p>No configurable fields for this node.</p>;
@@ -71,6 +93,38 @@ export default function NodeConfigPanel({ node, onChange, availableModels, avail
             <option value="eq">equal to</option>
             <option value="neq">not equal to</option>
           </select>
+        </div>
+      );
+    }
+
+    if (type === 'ExportNode' && field.key === 'mode') {
+      return (
+        <div key={field.key} style={{ marginBottom: 10 }}>
+          <label htmlFor={`${node.id}-${field.key}`}>{field.label}</label>
+          <select
+            id={`${node.id}-${field.key}`}
+            className="textarea"
+            value={(config as Record<string, string>)[field.key] || 'key'}
+            onChange={(e) => onChange(node.id, { ...config, [field.key]: e.target.value })}
+          >
+            <option value="key">key</option>
+            <option value="run_log">run log</option>
+          </select>
+        </div>
+      );
+    }
+
+    if (field.key === 'name') {
+      return (
+        <div key={field.key} style={{ marginBottom: 10 }}>
+          <label htmlFor={`${node.id}-${field.key}`}>{field.label}</label>
+          <input
+            id={`${node.id}-${field.key}`}
+            className="input"
+            placeholder={field.placeholder}
+            value={(config as Record<string, string>)[field.key] || ''}
+            onChange={(e) => onChange(node.id, { ...config, [field.key]: e.target.value })}
+          />
         </div>
       );
     }

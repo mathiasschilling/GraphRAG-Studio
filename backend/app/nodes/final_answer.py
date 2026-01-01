@@ -10,6 +10,7 @@ from ..core.node_base import BaseNode, default_registry
 @dataclass
 class FinalAnswerConfig:
     key: str = "response"
+    output_key: str = "output"
 
 
 class FinalAnswerNode(BaseNode):
@@ -18,7 +19,8 @@ class FinalAnswerNode(BaseNode):
 
     async def execute(self, ctx: ExecutionContext, inputs: Dict[str, Any]) -> Dict[str, Any]:
         final_value = inputs.get(self.config.key)
-        return {"output": final_value}
+        output_key = (self.config.output_key or "output").strip() or "output"
+        return {output_key: final_value}
 
 
 default_registry.register(FinalAnswerNode)

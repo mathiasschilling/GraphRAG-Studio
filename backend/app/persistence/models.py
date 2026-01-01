@@ -41,6 +41,7 @@ class Run(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     node_outputs: Mapped[dict | None] = mapped_column(SqliteJSON, nullable=True)
+    key_usage: Mapped[dict | None] = mapped_column(SqliteJSON, nullable=True)
 
     flow: Mapped[Flow] = relationship("Flow", back_populates="runs")
 

@@ -3,6 +3,7 @@ export type NodeType =
   | 'PromptTemplateNode'
   | 'LLMNode'
   | 'DatabaseNode'
+  | 'ExportNode'
   | 'FinalAnswerNode'
   | 'ConditionNode';
 
@@ -12,6 +13,9 @@ export interface NodePosition {
 }
 
 export interface NodeConfig {
+  name?: string;
+  mode?: string;
+  filename?: string;
   prompt?: string;
   system_prompt?: string;
   user_template?: string;
@@ -23,8 +27,11 @@ export interface NodeConfig {
   top_k?: number;
   joiner?: string;
   key?: string;
+  output_key?: string;
   input_key?: string;
   pass_through_key?: string;
+  true_key?: string;
+  false_key?: string;
   compare_value?: string;
   operator?: 'lt' | 'gt' | 'eq' | 'neq';
 }
@@ -68,6 +75,13 @@ export interface NodeRunLog {
   skipped?: boolean;
 }
 
+export interface KeyUsageEntry {
+  value?: unknown;
+  source_node?: string | null;
+  consumers?: string[];
+  writers?: string[];
+}
+
 export type NodeRunStatus = 'idle' | 'pending' | 'running' | 'done' | 'skipped' | 'error';
 
 export interface RunRecord {
@@ -80,5 +94,6 @@ export interface RunRecord {
   input_payload?: Record<string, unknown>;
   output_payload?: Record<string, unknown>;
   node_outputs?: Record<string, NodeRunLog>;
+  key_usage?: Record<string, KeyUsageEntry>;
   error?: string | null;
 }

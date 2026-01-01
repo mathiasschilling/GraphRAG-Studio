@@ -17,8 +17,9 @@ class LLMConfig:
     user_template: str | None = None
     # Legacy single-field prompt support for already-saved flows.
     prompt: str | None = None
+    output_key: str = "response"
     # When true, attempt to remove "reasoning" wrappers (e.g., <think>...</think>)
-    # from the model output so only the final answer is returned as {response}.
+    # from the model output so only the final answer is returned as the output key.
     strip_reasoning: bool = False
 
 
@@ -94,7 +95,8 @@ class LLMNode(BaseNode):
         response = await call_ollama_generate(self.config.model, prompt)
         if getattr(self.config, "strip_reasoning", False):
             response = _strip_reasoning_tokens(response)
-        return {"response": response}
+        output_key = (self.config.output_key or "response").strip() or "response"
+        return {output_key: response}
 
 
 default_registry.register(LLMNode)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import fields, is_dataclass
 from typing import Any, Dict, Optional, Type
 
 from .context import ExecutionContext
@@ -15,6 +16,10 @@ class BaseNode(ABC):
     def __init__(self, id: str, config: Optional[dict] = None):
         config = config or {}
         self.id = id
+        if is_dataclass(self.ConfigModel):
+            allowed = {field.name for field in fields(self.ConfigModel)}
+            # Drop UI-only or unknown config keys before constructing dataclass configs.
+            config = {key: value for key, value in config.items() if key in allowed}
         self.config = self.ConfigModel(**config) if callable(getattr(self.ConfigModel, "__call__", None)) else self.ConfigModel
 
     @abstractmethod

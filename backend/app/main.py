@@ -46,7 +46,7 @@ async def health() -> dict:
 async def run_flow(request: RunRequest) -> RunResponse:
     """Execute an ad-hoc graph payload without persisting it to storage."""
     result = await execute_graph(request.graph.to_core(), request.input)
-    return RunResponse(outputs=result.outputs)
+    return RunResponse(outputs=result.outputs, key_usage=result.key_usage)
 
 
 app.include_router(flows_router)

@@ -1,11 +1,12 @@
 import type { NodeType } from '../../types/nodes';
 
 const PALETTE_NODES: Array<{ type: NodeType; label: string }> = [
-  { type: 'UserInputNode', label: 'User Input' },
+  { type: 'UserInputNode', label: 'Input' },
   { type: 'LLMNode', label: 'LLM' },
   { type: 'DatabaseNode', label: 'Database' },
   { type: 'ConditionNode', label: 'Condition' },
-  { type: 'FinalAnswerNode', label: 'Final Answer' },
+  { type: 'ExportNode', label: 'Export' },
+  { type: 'FinalAnswerNode', label: 'Output' },
 ];
 
 interface Props {
