@@ -281,6 +281,38 @@ function FlowEditorContent() {
 
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
 
+  const handleKeyHover = useCallback(
+    (key: string | null) => {
+      const usage = key ? lastRun?.key_usage?.[key] : null;
+      const sourceNode = usage?.source_node ?? null;
+      const consumerSet = new Set(usage?.consumers ?? []);
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          let highlightRole: string | undefined;
+          if (sourceNode && node.id === sourceNode) {
+            highlightRole = consumerSet.has(node.id) ? 'both' : 'source';
+          } else if (consumerSet.has(node.id)) {
+            highlightRole = 'consumer';
+          }
+
+          if (node.data?.highlightRole === highlightRole) {
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              highlightRole,
+            },
+          };
+        }),
+      );
+    },
+    [lastRun, setNodes],
+  );
+
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
       setSelectedNodeId(selectedNodes[0]?.id ?? null);
@@ -488,7 +520,7 @@ function FlowEditorContent() {
                 Run flow
               </button>
               {runFlow.error && <p style={{ color: 'red' }}>Failed to run flow</p>}
-              <RunResultPanel run={lastRun} selectedNodeId={selectedNodeId} />
+              <RunResultPanel run={lastRun} selectedNodeId={selectedNodeId} onKeyHover={handleKeyHover} />
             </div>
           </>
         )}

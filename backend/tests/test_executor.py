@@ -478,6 +478,45 @@ def test_custom_condition_input_and_branch_keys_flow():
     assert any(log.node_id == "llm_false" and log.skipped for log in result.node_logs)
 
 
+def test_global_keys_available_without_direct_edge():
+    graph = FlowGraph(
+        id="global-keys",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode"),
+            "prompt": NodeDefinition(
+                id="prompt",
+                type="PromptTemplateNode",
+                config={"template": "Ticket: {input}", "output_key": "data"},
+            ),
+            "check": NodeDefinition(
+                id="check",
+                type="ConditionNode",
+                config={"input_key": "input", "compare_value": "", "operator": "neq"},
+            ),
+            "llm": NodeDefinition(
+                id="llm",
+                type="LLMNode",
+                config={"model": "test-model", "user_template": "Request: {input}\nTicket: {data}"},
+            ),
+            "final": NodeDefinition(id="final", type="FinalAnswerNode", config={"key": "response"}),
+        },
+        edges=[
+            EdgeDefinition(id="e1", from_node="user", to_node="prompt", from_output="input"),
+            EdgeDefinition(id="e2", from_node="prompt", to_node="check", from_output="data", to_input="input"),
+            EdgeDefinition(id="e3", from_node="check", to_node="llm", from_output="true", to_input="prompt"),
+            EdgeDefinition(id="e4", from_node="llm", to_node="final", from_output="response"),
+        ],
+    )
+
+    result = asyncio.run(execute_graph(graph, "Hello"))
+
+    expected_prompt = "Request: Ticket: Hello\nTicket: Ticket: Hello"
+    assert result.outputs["llm"]["response"] == f"[test-model] {expected_prompt}"
+    assert result.outputs["final"]["output"] == f"[test-model] {expected_prompt}"
+    assert result.key_usage["data"]["source_node"] == "prompt"
+    assert "llm" in result.key_usage["data"]["consumers"]
+
+
 def test_llm_reasoning_strip_opt_in():
     graph = FlowGraph(
         id="strip-reasoning",

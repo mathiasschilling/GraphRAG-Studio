@@ -133,6 +133,7 @@ async def run_flow(flow_id: str, payload: RunCreateRequest, db: Session = Depend
             run_record.output_payload = result.outputs
             run_record.completed_at = result.completed_at
             run_record.node_outputs = result.node_output_map()
+            run_record.key_usage = result.key_usage
             await run_event_broker.publish(
                 run_id,
                 {
@@ -188,4 +189,5 @@ async def run_flow(flow_id: str, payload: RunCreateRequest, db: Session = Depend
         started_at=run.started_at.isoformat() if run.started_at else None,
         completed_at=run.completed_at.isoformat() if run.completed_at else None,
         node_outputs=run.node_outputs,
+        key_usage=run.key_usage,
     )

@@ -148,6 +148,7 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
   const statusLabel = runStatus.charAt(0).toUpperCase() + runStatus.slice(1);
   const statusClass = `status-${runStatus}`;
   const isKnownType = KNOWN_NODE_TYPES.has((data?.type as NodeType) || 'UserInputNode');
+  const highlightRole = (data?.highlightRole as string) || '';
 
   const targetHandles = uniqueById(
     customHandles.targets.length ? customHandles.targets : isKnownType ? [] : [{ id: 'input', position: Position.Top }],
@@ -157,7 +158,12 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
   );
 
   return (
-    <div className={`${shapeClass(shape)} ${statusClass}`} data-run-status={runStatus} data-selected={selected ? 'true' : 'false'}>
+    <div
+      className={`${shapeClass(shape)} ${statusClass}`}
+      data-run-status={runStatus}
+      data-selected={selected ? 'true' : 'false'}
+      data-highlight={highlightRole || undefined}
+    >
       <div className={`shape-status-badge ${statusClass}`}>{statusLabel}</div>
       {targetHandles.map((handle) => (
         <div key={`t-${handle.id}`}>

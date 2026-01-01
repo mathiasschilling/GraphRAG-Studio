@@ -71,6 +71,13 @@ export interface NodeRunLog {
   skipped?: boolean;
 }
 
+export interface KeyUsageEntry {
+  value?: unknown;
+  source_node?: string | null;
+  consumers?: string[];
+  writers?: string[];
+}
+
 export type NodeRunStatus = 'idle' | 'pending' | 'running' | 'done' | 'skipped' | 'error';
 
 export interface RunRecord {
@@ -83,5 +90,6 @@ export interface RunRecord {
   input_payload?: Record<string, unknown>;
   output_payload?: Record<string, unknown>;
   node_outputs?: Record<string, NodeRunLog>;
+  key_usage?: Record<string, KeyUsageEntry>;
   error?: string | null;
 }
