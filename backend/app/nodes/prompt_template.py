@@ -10,6 +10,7 @@ from ..core.node_base import BaseNode, default_registry
 @dataclass
 class PromptTemplateConfig:
     template: str
+    output_key: str = "prompt"
 
 
 class PromptTemplateNode(BaseNode):
@@ -18,7 +19,8 @@ class PromptTemplateNode(BaseNode):
 
     async def execute(self, ctx: ExecutionContext, inputs: Dict[str, Any]) -> Dict[str, Any]:
         rendered = self.config.template.format(**inputs)
-        return {"prompt": rendered}
+        output_key = (self.config.output_key or "prompt").strip() or "prompt"
+        return {output_key: rendered}
 
 
 default_registry.register(PromptTemplateNode)

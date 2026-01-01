@@ -14,10 +14,12 @@ const editableConfig: Record<NodeType, Array<{ key: keyof NodeConfig; label: str
   UserInputNode: [{ key: 'key', label: 'Output key', placeholder: 'input' }],
   PromptTemplateNode: [
     { key: 'template', label: 'Prompt template', placeholder: 'Hello {input}' },
+    { key: 'output_key', label: 'Output key', placeholder: 'prompt' },
   ],
   LLMNode: [
     { key: 'system_prompt', label: 'System prompt', placeholder: 'You are a helpful assistant.' },
     { key: 'user_template', label: 'User message template', placeholder: 'Answer the user message: {input}' },
+    { key: 'output_key', label: 'Output key', placeholder: 'response' },
     { key: 'model', label: 'Model name', placeholder: 'e.g. mistral' },
     { key: 'strip_reasoning', label: 'Strip reasoning tokens' },
   ],
@@ -26,11 +28,14 @@ const editableConfig: Record<NodeType, Array<{ key: keyof NodeConfig; label: str
     { key: 'database_id', label: 'Database' },
     { key: 'query_template', label: 'Query template', placeholder: 'Find context for: {input}' },
     { key: 'input_key', label: 'Input key', placeholder: 'query' },
+    { key: 'output_key', label: 'Output key', placeholder: 'response' },
     { key: 'top_k', label: 'Top K', placeholder: '5' },
   ],
   ConditionNode: [
     { key: 'input_key', label: 'Input key to check', placeholder: 'input' },
     { key: 'pass_through_key', label: 'Pass-through key (optional)', placeholder: 'input' },
+    { key: 'true_key', label: 'True output key', placeholder: 'true' },
+    { key: 'false_key', label: 'False output key', placeholder: 'false' },
     { key: 'compare_value', label: 'Compare against value', placeholder: '5' },
     { key: 'operator', label: 'Operator' },
   ],

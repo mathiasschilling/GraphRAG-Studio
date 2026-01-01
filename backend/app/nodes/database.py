@@ -20,6 +20,7 @@ class DatabaseConfig:
     query_template: str | None = None
     top_k: int = 5
     joiner: str = "\n\n"
+    output_key: str = "response"
 
 
 class DatabaseNode(BaseNode):
@@ -52,8 +53,9 @@ class DatabaseNode(BaseNode):
             session.close()
 
         response = self.config.joiner.join(match.text for match in matches)
+        output_key = (self.config.output_key or "response").strip() or "response"
         return {
-            "response": response,
+            output_key: response,
             "matches": [
                 {
                     "chunk_id": match.chunk_id,

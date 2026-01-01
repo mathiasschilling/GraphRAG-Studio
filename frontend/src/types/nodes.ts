@@ -23,8 +23,11 @@ export interface NodeConfig {
   top_k?: number;
   joiner?: string;
   key?: string;
+  output_key?: string;
   input_key?: string;
   pass_through_key?: string;
+  true_key?: string;
+  false_key?: string;
   compare_value?: string;
   operator?: 'lt' | 'gt' | 'eq' | 'neq';
 }

@@ -80,34 +80,70 @@ def _topological_sort(graph: FlowGraph) -> List[str]:
     return ordered
 
 
+def _normalized_key(value: Any, fallback: str) -> str:
+    if isinstance(value, str):
+        value = value.strip()
+    return value or fallback
+
+
+def _condition_branch_keys(node_def: Any) -> tuple[str, str]:
+    config = getattr(node_def, "config", {}) or {}
+    true_key = _normalized_key(config.get("true_key"), "true")
+    false_key = _normalized_key(config.get("false_key"), "false")
+    return true_key, false_key
+
+
+def _default_source_handle(node_def: Any) -> str:
+    if node_def is None:
+        return "input"
+    config = getattr(node_def, "config", {}) or {}
+    node_type = getattr(node_def, "type", None)
+    if node_type == "UserInputNode":
+        return _normalized_key(config.get("key"), "input")
+    if node_type == "PromptTemplateNode":
+        return _normalized_key(config.get("output_key"), "prompt")
+    if node_type == "LLMNode":
+        return _normalized_key(config.get("output_key"), "response")
+    if node_type == "DatabaseNode":
+        return _normalized_key(config.get("output_key"), "response")
+    if node_type == "FinalAnswerNode":
+        return _normalized_key(config.get("output_key"), "output")
+    if node_type == "ConditionNode":
+        true_key, _ = _condition_branch_keys(node_def)
+        return true_key
+    return "input"
+
+
+def _default_target_handle(node_def: Any, from_output: str) -> str:
+    if node_def is None:
+        return from_output or "input"
+    config = getattr(node_def, "config", {}) or {}
+    node_type = getattr(node_def, "type", None)
+    if node_type == "UserInputNode":
+        return _normalized_key(config.get("key"), "input")
+    if node_type == "PromptTemplateNode":
+        return "input"
+    if node_type == "LLMNode":
+        return "prompt"
+    if node_type == "DatabaseNode":
+        return _normalized_key(config.get("input_key"), "query")
+    if node_type == "FinalAnswerNode":
+        return _normalized_key(config.get("key"), "response")
+    if node_type == "ConditionNode":
+        return _normalized_key(config.get("input_key"), "input")
+    return from_output or "input"
+
+
 def _incoming_edge_pairs(graph: FlowGraph) -> Dict[str, Tuple[Tuple[str, str, str], ...]]:
     """Group incoming edges for each node as (from_id, from_output, to_input)."""
 
-    default_source = {
-        "UserInputNode": "input",
-        "PromptTemplateNode": "prompt",
-        "LLMNode": "response",
-        "DatabaseNode": "response",
-        "FinalAnswerNode": "output",
-        "ConditionNode": "true",
-    }
-
-    default_target = {
-        "UserInputNode": "input",
-        "PromptTemplateNode": "input",
-        "LLMNode": "prompt",
-        "DatabaseNode": "query",
-        "FinalAnswerNode": "response",
-        "ConditionNode": "input",
-    }
-
     incoming: Dict[str, List[Tuple[str, str, str]]] = defaultdict(list)
     for edge in graph.edges:
-        source_type = graph.nodes.get(edge.from_node).type if edge.from_node in graph.nodes else None
-        target_type = graph.nodes.get(edge.to_node).type if edge.to_node in graph.nodes else None
+        source_def = graph.nodes.get(edge.from_node)
+        target_def = graph.nodes.get(edge.to_node)
 
-        from_output = edge.from_output or default_source.get(source_type, "input")
-        to_input = edge.to_input or default_target.get(target_type, from_output) or from_output
+        from_output = edge.from_output or _default_source_handle(source_def)
+        to_input = edge.to_input or _default_target_handle(target_def, from_output) or from_output
 
         incoming[edge.to_node].append((edge.from_node, from_output, to_input))
     return {node: tuple(edges) for node, edges in incoming.items()}
@@ -174,14 +210,17 @@ async def execute_graph(
         branch_blocked = False
         for parent, from_output, _ in inbound:
             parent_def = graph.nodes.get(parent)
-            if parent_def and parent_def.type == "ConditionNode" and from_output in {"true", "false"}:
-                condition_passed = ctx.get(parent, "condition")
-                if condition_passed is not None:
-                    if (from_output == "true" and condition_passed is False) or (
-                        from_output == "false" and condition_passed is True
-                    ):
-                        branch_blocked = True
-                        break
+            if parent_def and parent_def.type == "ConditionNode":
+                true_key, false_key = _condition_branch_keys(parent_def)
+                branch_keys = {true_key, false_key, "true", "false"}
+                if from_output in branch_keys:
+                    condition_passed = ctx.get(parent, "condition")
+                    if condition_passed is not None:
+                        if (from_output in {true_key, "true"} and condition_passed is False) or (
+                            from_output in {false_key, "false"} and condition_passed is True
+                        ):
+                            branch_blocked = True
+                            break
 
         if branch_blocked:
             now = datetime.now(timezone.utc)

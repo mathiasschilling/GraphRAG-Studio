@@ -1,5 +1,12 @@
 import { CSSProperties, memo, useMemo } from 'react';
 import { Handle, NodeProps, Position } from 'reactflow';
+import type { NodeConfig, NodeType } from '../../types/nodes';
+import {
+  getConditionFalseKey,
+  getConditionTrueKey,
+  getNodeInputKey,
+  getNodeOutputKey,
+} from '../../utils/nodeKeys';
 
 type Shape = 'ellipse' | 'rectangle' | 'rounded' | 'hexagon' | 'diamond';
 
@@ -25,34 +32,60 @@ const labelByType: Record<string, string> = {
 // Sources map to outputs the executor expects (e.g., "prompt" or "response").
 type HandleDef = { id: string; position: Position; style?: CSSProperties; label?: string };
 
-const handleConfig: Record<string, { sources: HandleDef[]; targets: HandleDef[] }> = {
-  UserInputNode: {
-    sources: [{ id: 'input', position: Position.Bottom }],
-    targets: [],
-  },
-  PromptTemplateNode: {
-    sources: [{ id: 'prompt', position: Position.Bottom }],
-    targets: [{ id: 'input', position: Position.Top }],
-  },
-  LLMNode: {
-    sources: [{ id: 'response', position: Position.Bottom }],
-    targets: [{ id: 'prompt', position: Position.Top }],
-  },
-  DatabaseNode: {
-    sources: [{ id: 'response', position: Position.Bottom }],
-    targets: [{ id: 'query', position: Position.Top }],
-  },
-  FinalAnswerNode: {
-    sources: [],
-    targets: [{ id: 'response', position: Position.Top }],
-  },
-  ConditionNode: {
-    sources: [
-      { id: 'false', position: Position.Left, label: 'false', style: { top: '50%' } },
-      { id: 'true', position: Position.Right, label: 'true', style: { top: '50%' } },
-    ],
-    targets: [{ id: 'input', position: Position.Top }],
-  },
+const KNOWN_NODE_TYPES = new Set<NodeType>([
+  'UserInputNode',
+  'PromptTemplateNode',
+  'LLMNode',
+  'DatabaseNode',
+  'ConditionNode',
+  'FinalAnswerNode',
+]);
+
+const buildHandles = (type: string, config: NodeConfig): { sources: HandleDef[]; targets: HandleDef[] } => {
+  const nodeType = type as NodeType;
+  switch (nodeType) {
+    case 'UserInputNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [],
+      };
+    case 'PromptTemplateNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'LLMNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'DatabaseNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'FinalAnswerNode':
+      return {
+        sources: [],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'ConditionNode': {
+      const falseKey = getConditionFalseKey(config);
+      const trueKey = getConditionTrueKey(config);
+      return {
+        sources: [
+          { id: falseKey, position: Position.Left, label: falseKey, style: { top: '50%' } },
+          { id: trueKey, position: Position.Right, label: trueKey, style: { top: '50%' } },
+        ],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    }
+    default:
+      return {
+        sources: [{ id: 'output', position: Position.Bottom }],
+        targets: [{ id: 'input', position: Position.Top }],
+      };
+  }
 };
 
 function uniqueById(handles: HandleDef[]) {
@@ -109,21 +142,18 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
   // selection changes elsewhere on the canvas.
   const shape = useMemo(() => shapeByType[data?.type as string] ?? 'rectangle', [data?.type]);
   const label = labelByType[data?.type as string] ?? (data?.type as string) ?? 'Node';
-  const customHandles = handleConfig[data?.type as string];
+  const config = (data?.config || {}) as NodeConfig;
+  const customHandles = buildHandles(data?.type as string, config);
   const runStatus = (data?.status as string) || 'idle';
   const statusLabel = runStatus.charAt(0).toUpperCase() + runStatus.slice(1);
   const statusClass = `status-${runStatus}`;
-  const handles =
-    customHandles ?? ({
-      sources: [{ id: 'output', position: Position.Bottom }],
-      targets: [{ id: 'input', position: Position.Top }],
-    } as const);
+  const isKnownType = KNOWN_NODE_TYPES.has((data?.type as NodeType) || 'UserInputNode');
 
   const targetHandles = uniqueById(
-    handles.targets.length ? handles.targets : customHandles ? [] : [{ id: 'input', position: Position.Top }],
+    customHandles.targets.length ? customHandles.targets : isKnownType ? [] : [{ id: 'input', position: Position.Top }],
   );
   const sourceHandles = uniqueById(
-    handles.sources.length ? handles.sources : customHandles ? [] : [{ id: 'output', position: Position.Bottom }],
+    customHandles.sources.length ? customHandles.sources : isKnownType ? [] : [{ id: 'output', position: Position.Bottom }],
   );
 
   return (

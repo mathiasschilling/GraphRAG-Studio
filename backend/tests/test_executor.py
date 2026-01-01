@@ -115,6 +115,41 @@ def test_condition_branches_activate_true_or_false_handles():
     assert any(log.node_id == "llm_false" and log.skipped for log in result.node_logs)
 
 
+def test_condition_allows_custom_branch_keys():
+    graph = FlowGraph(
+        id="branching-custom-keys",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode"),
+            "check": NodeDefinition(
+                id="check",
+                type="ConditionNode",
+                config={
+                    "input_key": "input",
+                    "compare_value": "5",
+                    "operator": "gt",
+                    "true_key": "pass",
+                    "false_key": "fail",
+                },
+            ),
+            "llm_true": NodeDefinition(id="llm_true", type="LLMNode", config={"model": "test-model"}),
+            "llm_false": NodeDefinition(id="llm_false", type="LLMNode", config={"model": "test-model"}),
+        },
+        edges=[
+            EdgeDefinition(id="e1", from_node="user", to_node="check", from_output="input"),
+            EdgeDefinition(id="e2", from_node="check", to_node="llm_true", from_output="pass", to_input="prompt"),
+            EdgeDefinition(id="e3", from_node="check", to_node="llm_false", from_output="fail", to_input="prompt"),
+        ],
+    )
+
+    result = asyncio.run(execute_graph(graph, 10))
+
+    assert result.outputs["check"]["condition"] is True
+    assert result.outputs["check"]["pass"] == 10
+    assert result.outputs["llm_true"]["response"] == "[test-model] 10"
+    assert "llm_false" not in result.outputs
+    assert any(log.node_id == "llm_false" and log.skipped for log in result.node_logs)
+
+
 def test_condition_pass_through_preserves_original_input():
     graph = FlowGraph(
         id="branching-pass-through",
@@ -154,6 +189,7 @@ def test_condition_pass_through_preserves_original_input():
     assert result.outputs["check"]["value"] == "true"
     assert result.outputs["check"]["true"] == "Keep me"
     assert result.outputs["check"]["false"] is None
+
 
 def test_llm_consumes_default_input_when_prompt_missing():
     graph = FlowGraph(
@@ -320,6 +356,126 @@ def test_prompt_template_can_use_response_key():
 
     assert result.outputs["prompt"]["prompt"] == "Previous response was: [model-a] Alias me"
     assert result.outputs["final"]["output"] == "Previous response was: [model-a] Alias me"
+
+
+def test_llm_output_key_overrides_default_output():
+    graph = FlowGraph(
+        id="llm-output-key",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode"),
+            "llm": NodeDefinition(
+                id="llm",
+                type="LLMNode",
+                config={"model": "test-model", "output_key": "summary"},
+            ),
+            "prompt": NodeDefinition(
+                id="prompt",
+                type="PromptTemplateNode",
+                config={"template": "Summary: {summary}"},
+            ),
+            "final": NodeDefinition(id="final", type="FinalAnswerNode", config={"key": "prompt"}),
+        },
+        edges=[
+            EdgeDefinition(id="e1", from_node="user", to_node="llm", from_output=""),
+            EdgeDefinition(id="e2", from_node="llm", to_node="prompt", from_output=""),
+            EdgeDefinition(id="e3", from_node="prompt", to_node="final", from_output=""),
+        ],
+    )
+
+    result = asyncio.run(execute_graph(graph, "Hello"))
+
+    assert result.outputs["llm"]["summary"] == "[test-model] Hello"
+    assert result.outputs["prompt"]["prompt"] == "Summary: [test-model] Hello"
+    assert result.outputs["final"]["output"] == "Summary: [test-model] Hello"
+
+
+def test_custom_keys_flow_through_prompt_llm_and_final():
+    graph = FlowGraph(
+        id="custom-keys-end-to-end",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode", config={"key": "user_text"}),
+            "prompt": NodeDefinition(
+                id="prompt",
+                type="PromptTemplateNode",
+                config={"template": "Ask: {user_text}", "output_key": "question"},
+            ),
+            "llm": NodeDefinition(
+                id="llm",
+                type="LLMNode",
+                config={
+                    "model": "test-model",
+                    "user_template": "Answer: {question}",
+                    "output_key": "answer",
+                },
+            ),
+            "final": NodeDefinition(
+                id="final",
+                type="FinalAnswerNode",
+                config={"key": "answer", "output_key": "final"},
+            ),
+        },
+        edges=[
+            EdgeDefinition(id="e1", from_node="user", to_node="prompt", from_output=""),
+            EdgeDefinition(id="e2", from_node="prompt", to_node="llm", from_output=""),
+            EdgeDefinition(id="e3", from_node="llm", to_node="final", from_output=""),
+        ],
+    )
+
+    result = asyncio.run(execute_graph(graph, "Hello"))
+
+    assert result.outputs["prompt"]["question"] == "Ask: Hello"
+    assert result.outputs["llm"]["answer"] == "[test-model] Answer: Ask: Hello"
+    assert result.outputs["final"]["final"] == "[test-model] Answer: Ask: Hello"
+
+
+def test_custom_condition_input_and_branch_keys_flow():
+    graph = FlowGraph(
+        id="custom-keys-condition",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode", config={"key": "payload"}),
+            "prompt": NodeDefinition(
+                id="prompt",
+                type="PromptTemplateNode",
+                config={"template": "{payload}", "output_key": "criteria"},
+            ),
+            "check": NodeDefinition(
+                id="check",
+                type="ConditionNode",
+                config={
+                    "input_key": "criteria",
+                    "compare_value": "go",
+                    "operator": "eq",
+                    "true_key": "yes",
+                    "false_key": "no",
+                },
+            ),
+            "llm_true": NodeDefinition(
+                id="llm_true",
+                type="LLMNode",
+                config={"model": "test-model", "user_template": "Proceed {yes}"},
+            ),
+            "llm_false": NodeDefinition(
+                id="llm_false",
+                type="LLMNode",
+                config={"model": "test-model", "user_template": "Stop {no}"},
+            ),
+        },
+        edges=[
+            EdgeDefinition(id="e1", from_node="user", to_node="prompt", from_output=""),
+            EdgeDefinition(id="e2", from_node="prompt", to_node="check", from_output=""),
+            EdgeDefinition(id="e3", from_node="check", to_node="llm_true", from_output="yes", to_input="prompt"),
+            EdgeDefinition(id="e4", from_node="check", to_node="llm_false", from_output="no", to_input="prompt"),
+        ],
+    )
+
+    result = asyncio.run(execute_graph(graph, "go"))
+
+    assert result.outputs["prompt"]["criteria"] == "go"
+    assert result.outputs["check"]["condition"] is True
+    assert result.outputs["check"]["yes"] == "go"
+    assert result.outputs["llm_true"]["response"] == "[test-model] Proceed go"
+    assert "llm_false" not in result.outputs
+    assert any(log.node_id == "llm_false" and log.skipped for log in result.node_logs)
 
 
 def test_llm_reasoning_strip_opt_in():
