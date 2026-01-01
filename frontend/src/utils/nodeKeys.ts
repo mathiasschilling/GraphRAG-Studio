@@ -13,6 +13,7 @@ export const DEFAULT_OUTPUT_KEYS: Record<NodeType, string> = {
   PromptTemplateNode: 'prompt',
   LLMNode: 'response',
   DatabaseNode: 'response',
+  ExportNode: 'export_path',
   FinalAnswerNode: 'output',
   ConditionNode: 'true',
 };
@@ -22,6 +23,7 @@ export const DEFAULT_INPUT_KEYS: Record<NodeType, string> = {
   PromptTemplateNode: 'input',
   LLMNode: 'prompt',
   DatabaseNode: 'query',
+  ExportNode: 'input',
   FinalAnswerNode: 'response',
   ConditionNode: 'input',
 };
@@ -36,6 +38,7 @@ export const getNodeOutputKey = (type: NodeType, config: NodeConfig = {}) => {
   switch (type) {
     case 'UserInputNode':
       return normalizeKey(config.key, DEFAULT_OUTPUT_KEYS.UserInputNode);
+    case 'ExportNode':
     case 'PromptTemplateNode':
     case 'LLMNode':
     case 'DatabaseNode':
@@ -52,6 +55,7 @@ export const getNodeInputKey = (type: NodeType, config: NodeConfig = {}) => {
   switch (type) {
     case 'DatabaseNode':
     case 'ConditionNode':
+    case 'ExportNode':
       return normalizeKey(config.input_key, DEFAULT_INPUT_KEYS[type]);
     case 'FinalAnswerNode':
       return normalizeKey(config.key, DEFAULT_INPUT_KEYS.FinalAnswerNode);

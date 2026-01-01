@@ -14,6 +14,7 @@ class ExecutionContext:
     initial_input: Any
     values: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     global_values: Dict[str, Any] = field(default_factory=dict)
+    run_log: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def add(self, node_id: str, output_name: str, value: Any) -> None:
         node_bucket = self.values.setdefault(node_id, {})

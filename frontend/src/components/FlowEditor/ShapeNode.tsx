@@ -17,6 +17,7 @@ const shapeByType: Record<string, Shape> = {
   LLMNode: 'rectangle',
   DatabaseNode: 'rectangle',
   ConditionNode: 'rectangle',
+  ExportNode: 'rectangle',
 };
 
 const labelByType: Record<string, string> = {
@@ -25,6 +26,7 @@ const labelByType: Record<string, string> = {
   LLMNode: 'LLM',
   DatabaseNode: 'Database',
   ConditionNode: 'Condition',
+  ExportNode: 'Export',
   FinalAnswerNode: 'Output',
 };
 
@@ -34,6 +36,7 @@ const typeBadgeByType: Record<string, string> = {
   LLMNode: 'LLM',
   DatabaseNode: 'DB',
   ConditionNode: 'COND',
+  ExportNode: 'Export',
   FinalAnswerNode: 'Output',
 };
 
@@ -47,6 +50,7 @@ const KNOWN_NODE_TYPES = new Set<NodeType>([
   'LLMNode',
   'DatabaseNode',
   'ConditionNode',
+  'ExportNode',
   'FinalAnswerNode',
 ]);
 
@@ -69,6 +73,11 @@ const buildHandles = (type: string, config: NodeConfig): { sources: HandleDef[];
         targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
       };
     case 'DatabaseNode':
+      return {
+        sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
+        targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],
+      };
+    case 'ExportNode':
       return {
         sources: [{ id: getNodeOutputKey(nodeType, config), position: Position.Bottom }],
         targets: [{ id: getNodeInputKey(nodeType, config), position: Position.Top }],

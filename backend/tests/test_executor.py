@@ -1,9 +1,11 @@
 import asyncio
+import json
 
 import pytest
 
 from app.core.executor import execute_graph
 from app.core.graph import EdgeDefinition, FlowGraph, NodeDefinition
+from app.config import get_settings
 
 
 def test_simple_graph_execution():
@@ -53,6 +55,67 @@ def test_ignores_ui_only_config_fields():
 
     assert result.outputs["user"]["input"] == "Hello"
     assert result.outputs["final"]["output"] == "Hello"
+
+
+def test_export_node_writes_key_to_json(tmp_path, monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_STORAGE_PATH", str(tmp_path))
+    get_settings.cache_clear()
+
+    graph = FlowGraph(
+        id="export-key",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode"),
+            "export": NodeDefinition(
+                id="export",
+                type="ExportNode",
+                config={"mode": "key", "key": "input", "output_key": "file"},
+            ),
+        },
+        edges=[EdgeDefinition(id="e1", from_node="user", to_node="export", from_output="input")],
+    )
+
+    result = asyncio.run(execute_graph(graph, "Hello"))
+
+    export_path = result.outputs["export"]["file"]
+    with open(export_path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    assert payload == {"key": "input", "value": "Hello"}
+
+    get_settings.cache_clear()
+
+
+def test_export_node_writes_run_log(tmp_path, monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_STORAGE_PATH", str(tmp_path))
+    get_settings.cache_clear()
+
+    graph = FlowGraph(
+        id="export-log",
+        nodes={
+            "user": NodeDefinition(id="user", type="UserInputNode"),
+            "llm": NodeDefinition(id="llm", type="LLMNode", config={"model": "test-model"}),
+            "export": NodeDefinition(
+                id="export",
+                type="ExportNode",
+                config={"mode": "run_log", "output_key": "file"},
+            ),
+        },
+        edges=[
+            EdgeDefinition(id="e1", from_node="user", to_node="llm", from_output="input"),
+            EdgeDefinition(id="e2", from_node="llm", to_node="export", from_output="response"),
+        ],
+    )
+
+    result = asyncio.run(execute_graph(graph, "Hello"))
+
+    export_path = result.outputs["export"]["file"]
+    with open(export_path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    assert "user" in payload
+    assert payload["user"]["outputs"]["input"] == "Hello"
+
+    get_settings.cache_clear()
 
 
 def test_detects_cycle():

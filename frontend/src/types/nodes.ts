@@ -3,6 +3,7 @@ export type NodeType =
   | 'PromptTemplateNode'
   | 'LLMNode'
   | 'DatabaseNode'
+  | 'ExportNode'
   | 'FinalAnswerNode'
   | 'ConditionNode';
 
@@ -13,6 +14,8 @@ export interface NodePosition {
 
 export interface NodeConfig {
   name?: string;
+  mode?: string;
+  filename?: string;
   prompt?: string;
   system_prompt?: string;
   user_template?: string;

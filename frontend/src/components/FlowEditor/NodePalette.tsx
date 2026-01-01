@@ -5,6 +5,7 @@ const PALETTE_NODES: Array<{ type: NodeType; label: string }> = [
   { type: 'LLMNode', label: 'LLM' },
   { type: 'DatabaseNode', label: 'Database' },
   { type: 'ConditionNode', label: 'Condition' },
+  { type: 'ExportNode', label: 'Export' },
   { type: 'FinalAnswerNode', label: 'Output' },
 ];
 

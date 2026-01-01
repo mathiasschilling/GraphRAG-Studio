@@ -29,6 +29,16 @@ class NodeExecutionLog:
     def duration_ms(self) -> float:
         return (self.completed_at - self.started_at).total_seconds() * 1000
 
+    def as_payload(self) -> Dict[str, Any]:
+        return {
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+            "started_at": self.started_at.isoformat(),
+            "completed_at": self.completed_at.isoformat(),
+            "duration_ms": self.duration_ms,
+            "skipped": self.skipped,
+        }
+
 
 @dataclass
 class ExecutionResult:
@@ -44,14 +54,7 @@ class ExecutionResult:
 
     def node_output_map(self) -> Dict[str, Dict[str, Any]]:
         return {
-            log.node_id: {
-                "inputs": log.inputs,
-                "outputs": log.outputs,
-                "started_at": log.started_at.isoformat(),
-                "completed_at": log.completed_at.isoformat(),
-                "duration_ms": log.duration_ms,
-                "skipped": log.skipped,
-            }
+            log.node_id: log.as_payload()
             for log in self.node_logs
         }
 
@@ -113,6 +116,8 @@ def _default_source_handle(node_def: Any) -> str:
     if node_type == "ConditionNode":
         true_key, _ = _condition_branch_keys(node_def)
         return true_key
+    if node_type == "ExportNode":
+        return _normalized_key(config.get("output_key"), "export_path")
     return "input"
 
 
@@ -132,6 +137,8 @@ def _default_target_handle(node_def: Any, from_output: str) -> str:
     if node_type == "FinalAnswerNode":
         return _normalized_key(config.get("key"), "response")
     if node_type == "ConditionNode":
+        return _normalized_key(config.get("input_key"), "input")
+    if node_type == "ExportNode":
         return _normalized_key(config.get("input_key"), "input")
     return from_output or "input"
 
@@ -174,6 +181,11 @@ def _required_input_keys(node_def: Any) -> set[str]:
             keys.add(pass_key)
         return keys
     if node_type == "FinalAnswerNode":
+        return {_normalized_key(config.get("key"), "response")}
+    if node_type == "ExportNode":
+        mode = (config.get("mode") or "key").strip().lower()
+        if mode == "run_log":
+            return set()
         return {_normalized_key(config.get("key"), "response")}
     return set()
 
@@ -233,6 +245,10 @@ async def execute_graph(
         ts = (timestamp or datetime.now(timezone.utc)).isoformat()
         await event_handler({"node_id": node_id, "status": status, "timestamp": ts})
 
+    def record_log(log: NodeExecutionLog) -> None:
+        node_logs.append(log)
+        ctx.run_log[log.node_id] = log.as_payload()
+
     for node_id in order:
         node = nodes[node_id]
         node_def = graph.nodes.get(node_id)
@@ -243,7 +259,7 @@ async def execute_graph(
             now = datetime.now(timezone.utc)
             skipped_nodes.add(node_id)
             await emit_event("skipped", node_id, now)
-            node_logs.append(
+            record_log(
                 NodeExecutionLog(
                     node_id=node_id,
                     started_at=now,
@@ -280,7 +296,7 @@ async def execute_graph(
             now = datetime.now(timezone.utc)
             skipped_nodes.add(node_id)
             await emit_event("skipped", node_id, now)
-            node_logs.append(
+            record_log(
                 NodeExecutionLog(
                     node_id=node_id,
                     started_at=now,
@@ -297,7 +313,7 @@ async def execute_graph(
             now = datetime.now(timezone.utc)
             skipped_nodes.add(node_id)
             await emit_event("skipped", node_id, now)
-            node_logs.append(
+            record_log(
                 NodeExecutionLog(
                     node_id=node_id,
                     started_at=now,
@@ -322,7 +338,7 @@ async def execute_graph(
             entry["writers"].append(node_id)
             entry["source_node"] = node_id
             entry["value"] = value
-        node_logs.append(
+        record_log(
             NodeExecutionLog(
                 node_id=node_id,
                 started_at=node_started_at,

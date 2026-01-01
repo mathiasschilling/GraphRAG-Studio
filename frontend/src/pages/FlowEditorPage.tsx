@@ -94,6 +94,12 @@ const DEFAULT_CONFIGS: Record<NodeType, NodeConfig> = {
     query_template: '',
     top_k: 5,
   },
+  ExportNode: {
+    mode: 'key',
+    key: 'response',
+    input_key: 'input',
+    output_key: 'export_path',
+  },
   FinalAnswerNode: { key: 'response' },
   ConditionNode: { input_key: 'input', pass_through_key: '', compare_value: '', operator: 'eq' },
 };
