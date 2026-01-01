@@ -12,6 +12,7 @@ export interface NodePosition {
 }
 
 export interface NodeConfig {
+  name?: string;
   prompt?: string;
   system_prompt?: string;
   user_template?: string;

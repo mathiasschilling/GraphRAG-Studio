@@ -305,6 +305,24 @@ select {
 
 .shape-label {
   pointer-events: none;
+  padding: 0 8px;
+  line-height: 1.2;
+}
+
+.shape-type-label {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  background: #e2e8f0;
+  border: 1px solid #cbd5f5;
+  pointer-events: none;
 }
 
 .shape-node.ellipse {

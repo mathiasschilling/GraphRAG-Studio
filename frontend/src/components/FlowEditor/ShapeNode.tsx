@@ -28,6 +28,15 @@ const labelByType: Record<string, string> = {
   FinalAnswerNode: 'Output',
 };
 
+const typeBadgeByType: Record<string, string> = {
+  UserInputNode: 'Input',
+  PromptTemplateNode: 'Prompt',
+  LLMNode: 'LLM',
+  DatabaseNode: 'DB',
+  ConditionNode: 'COND',
+  FinalAnswerNode: 'Output',
+};
+
 // Each node type exposes the handles needed to keep default connections intact.
 // Sources map to outputs the executor expects (e.g., "prompt" or "response").
 type HandleDef = { id: string; position: Position; style?: CSSProperties; label?: string };
@@ -141,8 +150,11 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
   // conditional connections. The memo wrapper avoids re-renders when
   // selection changes elsewhere on the canvas.
   const shape = useMemo(() => shapeByType[data?.type as string] ?? 'rectangle', [data?.type]);
-  const label = labelByType[data?.type as string] ?? (data?.type as string) ?? 'Node';
   const config = (data?.config || {}) as NodeConfig;
+  const typeLabel = labelByType[data?.type as string] ?? (data?.type as string) ?? 'Node';
+  const typeBadge = typeBadgeByType[data?.type as string] ?? typeLabel;
+  const customName = (config.name || '').trim();
+  const label = customName || typeLabel;
   const customHandles = buildHandles(data?.type as string, config);
   const runStatus = (data?.status as string) || 'idle';
   const statusLabel = runStatus.charAt(0).toUpperCase() + runStatus.slice(1);
@@ -172,6 +184,7 @@ const ShapeNode = memo(({ data, selected }: NodeProps) => {
         </div>
       ))}
       <div className="shape-label">{label}</div>
+      <div className="shape-type-label">{typeBadge}</div>
       {sourceHandles.map((handle) => (
         <div key={`s-${handle.id}`}>
           <Handle id={handle.id} type="source" position={handle.position} style={handle.style} />

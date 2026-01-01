@@ -47,7 +47,10 @@ export default function NodeConfigPanel({ node, onChange, availableModels, avail
   const type = (node.data?.type as NodeType) || 'UserInputNode';
   const fields = useMemo(() => {
     const seen = new Set<string>();
-    return (editableConfig[type] || []).filter((field) => {
+    const baseFields: Array<{ key: keyof NodeConfig; label: string; placeholder?: string }> = [
+      { key: 'name', label: 'Node name', placeholder: 'Optional label' },
+    ];
+    return [...baseFields, ...(editableConfig[type] || [])].filter((field) => {
       if (seen.has(field.key)) return false;
       seen.add(field.key);
       return true;
@@ -76,6 +79,21 @@ export default function NodeConfigPanel({ node, onChange, availableModels, avail
             <option value="eq">equal to</option>
             <option value="neq">not equal to</option>
           </select>
+        </div>
+      );
+    }
+
+    if (field.key === 'name') {
+      return (
+        <div key={field.key} style={{ marginBottom: 10 }}>
+          <label htmlFor={`${node.id}-${field.key}`}>{field.label}</label>
+          <input
+            id={`${node.id}-${field.key}`}
+            className="input"
+            placeholder={field.placeholder}
+            value={(config as Record<string, string>)[field.key] || ''}
+            onChange={(e) => onChange(node.id, { ...config, [field.key]: e.target.value })}
+          />
         </div>
       );
     }

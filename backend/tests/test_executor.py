@@ -31,6 +31,30 @@ def test_simple_graph_execution():
     assert result.started_at <= result.completed_at
 
 
+def test_ignores_ui_only_config_fields():
+    graph = FlowGraph(
+        id="ui-only-config",
+        nodes={
+            "user": NodeDefinition(
+                id="user",
+                type="UserInputNode",
+                config={"key": "input", "name": "Custom Input"},
+            ),
+            "final": NodeDefinition(
+                id="final",
+                type="FinalAnswerNode",
+                config={"key": "input", "name": "Custom Output"},
+            ),
+        },
+        edges=[EdgeDefinition(id="e1", from_node="user", to_node="final", from_output="input")],
+    )
+
+    result = asyncio.run(execute_graph(graph, "Hello"))
+
+    assert result.outputs["user"]["input"] == "Hello"
+    assert result.outputs["final"]["output"] == "Hello"
+
+
 def test_detects_cycle():
     graph = FlowGraph(
         id="cycle",
