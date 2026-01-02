@@ -597,7 +597,7 @@ def test_global_keys_available_without_direct_edge():
 
     result = asyncio.run(execute_graph(graph, "Hello"))
 
-    expected_prompt = "Request: Ticket: Hello\nTicket: Ticket: Hello"
+    expected_prompt = "Request: Hello\nTicket: Ticket: Hello"
     assert result.outputs["llm"]["response"] == f"[test-model] {expected_prompt}"
     assert result.outputs["final"]["output"] == f"[test-model] {expected_prompt}"
     assert result.key_usage["data"]["source_node"] == "prompt"

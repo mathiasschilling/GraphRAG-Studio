@@ -6,11 +6,22 @@ GraphRAG Studio is a visual builder for Retrieval-Augmented Generation (RAG) flo
 - Drag-and-drop editor with UML-inspired node shapes (input/output, prompt, LLM, condition).
 - Flow persistence and execution via the FastAPI backend, with per-node timing/output metadata.
 - Optional local model inference through Ollama; stubbed responses available for offline testing.
+- Global keys with hoverable key-usage tracing in run results (origin + consumers).
 
 ## Node configuration tips
 - The input node provides an `input` key, LLM nodes produce `response` keys.
 - Keys are literal input/output names. Use `response`, not `{response}`, in Output node configs.
 - Curly braces are only for prompt templates (for example, `Hello {input}`).
+- Global keys are always-on with inputs-first and last-writer-wins semantics. Any key written by a node is available to later nodes without explicit edges.
+- Each node can have an optional `name` shown as the primary label; the type badge stays visible.
+
+## Export node
+- Export node writes JSON to disk, either a single key payload or the run log snapshot.
+- Modes:
+  - `key`: writes `{"key": "<key>", "value": <value>}` (value resolved from inputs, then globals).
+  - `run_log`: writes the run log payload (per-node inputs/outputs/timestamps/duration).
+- Files are saved under `GRAPHRAG_STORAGE_PATH/exports` (default `backend/storage/exports`).
+- The node outputs the file path via `output_key` (default `export_path`).
 
 ## Vector databases
 - Create a database from the Flows page by uploading `.txt`, `.md`, `.pdf`, or `.docx` files.
