@@ -79,9 +79,10 @@ Run the backend first so the frontend can reach the API.
 - Backend tests: `cd backend && source .venv/bin/activate && pytest`
 - Frontend lint/tests (if configured): `cd frontend && npm test`
 
-## License and attribution
-This project is licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**. When reusing or redistributing, credit the author as:
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-> "GraphRAG Studio by Mathias Schilling (CC BY 4.0)"
+## Attribution (optional)
+If you use this project, attribution is appreciated but not required. Suggested credit:
 
-See https://creativecommons.org/licenses/by/4.0/ for details on permitted uses and attribution requirements.
+> GraphRAG Studio by Mathias Schilling
