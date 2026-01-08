@@ -25,6 +25,16 @@ def _safe_filename(name: str) -> str:
     return Path(name).name or "document"
 
 
+def document_file_path(
+    storage_path: str | Path,
+    database_id: str,
+    document_id: str,
+    filename: str,
+) -> Path:
+    safe_name = _safe_filename(filename)
+    return Path(storage_path) / database_id / f"{document_id}_{safe_name}"
+
+
 def _write_file(base_dir: Path, doc_id: str, filename: str, content: bytes) -> Path:
     safe_name = _safe_filename(filename)
     file_path = base_dir / f"{doc_id}_{safe_name}"

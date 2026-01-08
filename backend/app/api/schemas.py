@@ -94,6 +94,25 @@ class ChunkPreview(BaseModel):
     score: float | None = None
 
 
+class DocumentRead(BaseModel):
+    id: str
+    database_id: str
+    filename: str
+    mime_type: str | None = None
+    size: int | None = None
+    created_at: str
+    chunk_count: int
+
+
+class ChunkRead(BaseModel):
+    id: str
+    database_id: str
+    document_id: str
+    chunk_index: int
+    text: str
+    created_at: str
+
+
 class VectorDatabaseRead(BaseModel):
     id: str
     name: str

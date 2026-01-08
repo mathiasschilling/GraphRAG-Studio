@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { databasesApi } from '../api/databases';
 import { flowsApi } from '../api/flows';
+import type { VectorDatabase } from '../types/databases';
 import type { FlowGraph } from '../types/nodes';
 
 function defaultGraph(): FlowGraph {
@@ -28,6 +29,185 @@ function defaultGraph(): FlowGraph {
       { id: `${llmId}-${finalId}-response`, from_node: llmId, from_output: 'response', to_node: finalId, to_input: 'response' },
     ],
   };
+}
+
+interface DatabaseCardProps {
+  database: VectorDatabase;
+  onDelete: (id: string) => void;
+  deletePending: boolean;
+}
+
+function DatabaseCard({ database, onDelete, deletePending }: DatabaseCardProps) {
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
+  const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [chunkIdToDelete, setChunkIdToDelete] = useState('');
+
+  const documentsQuery = useQuery({
+    queryKey: ['database-documents', database.id],
+    queryFn: () => databasesApi.listDocuments(database.id),
+    enabled: isOpen,
+  });
+
+  const addDocuments = useMutation({
+    mutationFn: () => {
+      if (!uploadFiles || uploadFiles.length === 0) {
+        throw new Error('Please select at least one file');
+      }
+      return databasesApi.addDocuments(database.id, { files: uploadFiles });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['database-documents', database.id] });
+      setUploadFiles(null);
+      setFileInputKey((value) => value + 1);
+    },
+  });
+
+  const deleteDocument = useMutation({
+    mutationFn: (documentId: string) => databasesApi.deleteDocument(database.id, documentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['database-documents', database.id] });
+    },
+  });
+
+  const deleteChunk = useMutation({
+    mutationFn: (chunkId: string) => databasesApi.deleteChunk(database.id, chunkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['database-documents', database.id] });
+      setChunkIdToDelete('');
+    },
+  });
+
+  const canAddDocuments = Boolean(uploadFiles && uploadFiles.length > 0);
+  const canRemoveChunk = Boolean(chunkIdToDelete.trim());
+
+  return (
+    <div className="card" style={{ borderColor: '#e2e8f0' }}>
+      <div className="flex-between">
+        <div>
+          <h3 style={{ margin: '0 0 4px' }}>{database.name}</h3>
+          <p style={{ margin: 0, color: '#475569' }}>Status: {database.status}</p>
+        </div>
+        <button className="button secondary" onClick={() => onDelete(database.id)} disabled={deletePending}>
+          Delete
+        </button>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
+        <div>Documents: {database.document_count}</div>
+        <div>Chunks: {database.chunk_count}</div>
+        {database.embedding_model && <div>Embedding: {database.embedding_model}</div>}
+        {(database.chunk_size || database.chunk_overlap) && (
+          <div>
+            Chunking: {database.chunk_size ?? '-'} / {database.chunk_overlap ?? '-'}
+          </div>
+        )}
+      </div>
+
+      <details
+        style={{ marginTop: 12 }}
+        open={isOpen}
+        onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      >
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Manage documents</summary>
+        <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label htmlFor={`database-${database.id}-files`}>Add files</label>
+            <input
+              key={fileInputKey}
+              id={`database-${database.id}-files`}
+              className="input"
+              type="file"
+              multiple
+              accept=".txt,.md,.pdf,.docx"
+              onChange={(event) => setUploadFiles(event.target.files)}
+            />
+            <button
+              className="button secondary"
+              onClick={() => addDocuments.mutate()}
+              disabled={!canAddDocuments || addDocuments.isPending}
+            >
+              {addDocuments.isPending ? 'Uploading…' : 'Add to database'}
+            </button>
+            {addDocuments.error && (
+              <p style={{ color: 'red', margin: 0 }}>
+                {addDocuments.error instanceof Error ? addDocuments.error.message : 'Failed to add documents'}
+              </p>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <strong>Documents</strong>
+            {documentsQuery.isLoading && <p style={{ margin: 0 }}>Loading documents…</p>}
+            {documentsQuery.error && <p style={{ margin: 0, color: 'red' }}>Failed to load documents</p>}
+            {documentsQuery.data && documentsQuery.data.length === 0 && (
+              <p style={{ margin: 0, color: '#475569' }}>No documents yet.</p>
+            )}
+            <div style={{ display: 'grid', gap: 8 }}>
+              {documentsQuery.data?.map((document) => (
+                <div
+                  key={document.id}
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 8,
+                    padding: 10,
+                    background: '#f8fafc',
+                  }}
+                >
+                  <div className="flex-between" style={{ alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{document.filename}</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>ID: {document.id}</div>
+                    </div>
+                    <button
+                      className="button danger"
+                      onClick={() => deleteDocument.mutate(document.id)}
+                      disabled={deleteDocument.isPending}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#475569' }}>
+                    Chunks: {document.chunk_count}
+                    {document.size != null ? ` · Size: ${document.size} bytes` : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label htmlFor={`database-${database.id}-chunk`}>Remove chunk by ID</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                id={`database-${database.id}-chunk`}
+                className="input"
+                value={chunkIdToDelete}
+                onChange={(event) => setChunkIdToDelete(event.target.value)}
+                placeholder="chunk-id"
+                style={{ flex: 1 }}
+              />
+              <button
+                className="button danger"
+                onClick={() => deleteChunk.mutate(chunkIdToDelete.trim())}
+                disabled={!canRemoveChunk || deleteChunk.isPending}
+              >
+                Remove
+              </button>
+            </div>
+            {deleteChunk.error && (
+              <p style={{ color: 'red', margin: 0 }}>
+                {deleteChunk.error instanceof Error ? deleteChunk.error.message : 'Failed to remove chunk'}
+              </p>
+            )}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
 }
 
 export default function FlowsListPage() {
@@ -230,31 +410,12 @@ export default function FlowsListPage() {
 
         <div className="grid" style={{ marginTop: 12 }}>
           {databases?.map((database) => (
-            <div key={database.id} className="card" style={{ borderColor: '#e2e8f0' }}>
-              <div className="flex-between">
-                <div>
-                  <h3 style={{ margin: '0 0 4px' }}>{database.name}</h3>
-                  <p style={{ margin: 0, color: '#475569' }}>Status: {database.status}</p>
-                </div>
-                <button
-                  className="button secondary"
-                  onClick={() => deleteDatabase.mutate(database.id)}
-                  disabled={deleteDatabase.isPending}
-                >
-                  Delete
-                </button>
-              </div>
-              <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
-                <div>Documents: {database.document_count}</div>
-                <div>Chunks: {database.chunk_count}</div>
-                {database.embedding_model && <div>Embedding: {database.embedding_model}</div>}
-                {(database.chunk_size || database.chunk_overlap) && (
-                  <div>
-                    Chunking: {database.chunk_size ?? '-'} / {database.chunk_overlap ?? '-'}
-                  </div>
-                )}
-              </div>
-            </div>
+            <DatabaseCard
+              key={database.id}
+              database={database}
+              onDelete={(id) => deleteDatabase.mutate(id)}
+              deletePending={deleteDatabase.isPending}
+            />
           ))}
         </div>
       </div>
